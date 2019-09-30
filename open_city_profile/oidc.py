@@ -13,5 +13,8 @@ class GraphQLApiTokenAuthentication(ApiTokenAuthentication):
     """
 
     def authenticate(self, request, **kwargs):
-        user, auth = super().authenticate(request)
+        try:
+            user, auth = super().authenticate(request)
+        except TypeError:  # incorrect credentials throw "'NoneType' object is not iterable"
+            return None
         return user
