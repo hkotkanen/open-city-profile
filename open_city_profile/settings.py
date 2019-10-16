@@ -115,6 +115,8 @@ INSTALLED_APPS = [
     "django_ilmoitin",
     "mailer",
     "graphene_django",
+    "consents",
+    "django_extensions",
 ]
 
 MIDDLEWARE = [

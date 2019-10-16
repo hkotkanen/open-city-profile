@@ -1,6 +1,7 @@
 import uuid
 
 import graphene
+from django.contrib.auth.models import Group
 from django.utils import timezone
 from django.utils.translation import override
 from django.utils.translation import ugettext_lazy as _
@@ -9,7 +10,8 @@ from graphene_django.types import DjangoObjectType
 from graphql import GraphQLError
 from graphql_jwt.decorators import login_required
 
-from profiles.models import Profile
+from consents.models import DataUseConsent, DataUseConsentPurpose
+from profiles.models import BasicProfile
 
 from .consts import GENDERS, LANGUAGES
 from .enums import NotificationType
@@ -29,9 +31,14 @@ class YouthProfileType(DjangoObjectType):
         model = YouthProfile
         exclude = ("id", "approval_token")
 
+    @classmethod
+    def get_queryset(cls, queryset, info):
+        return queryset
+
 
 # Abstract base fields
 class YouthProfileFields(graphene.InputObjectType):
+    profile_id = graphene.ID()
     school_name = graphene.String()
     school_class = graphene.String()
     preferred_language = PreferredLanguage()
@@ -49,7 +56,7 @@ class YouthProfileFields(graphene.InputObjectType):
 
 # Subset of abstract fields are required for creation
 class CreateYouthProfileInput(YouthProfileFields):
-    ssn = graphene.String(required=True)
+    # ssn = graphene.String(required=True)
     school_name = graphene.String(required=True)
     school_class = graphene.String(required=True)
     approver_email = graphene.String(required=True)
@@ -69,13 +76,13 @@ class CreateYouthProfile(graphene.Mutation):
 
         if info.context.user.is_superuser:
             try:
-                profile = Profile.objects.get(pk=profile_id)
-            except Profile.DoesNotExist:
+                profile = BasicProfile.objects.get(pk=profile_id)
+            except BasicProfile.DoesNotExist:
                 raise GraphQLError(_("Invalid profile id."))
         else:
             try:
-                profile = Profile.objects.get(user=info.context.user)
-            except Profile.DoesNotExist:
+                profile = BasicProfile.objects.get(user=info.context.user)
+            except BasicProfile.DoesNotExist:
                 raise GraphQLError(_("No profile found, please create one!"))
 
         youth_profile, created = YouthProfile.objects.get_or_create(
@@ -83,6 +90,19 @@ class CreateYouthProfile(graphene.Mutation):
         )
         if not created:
             raise GraphQLError(_("Youth profile already exists for this profile!"))
+
+        # --- CREATE CONSENT
+        basic_purpose = DataUseConsentPurpose.objects.get(name="youth_work")
+        city_worker_group = Group.objects.get(name="youth_worker")
+        consent = DataUseConsent.objects.create(
+            consenter=info.context.user,
+            audience=city_worker_group,
+            purpose=basic_purpose,
+            content_object=youth_profile
+        )
+        print(consent)
+        print(profile.consents)
+        # ---
 
         youth_profile.approval_token = uuid.uuid4()
         send_notification(
@@ -117,13 +137,13 @@ class UpdateYouthProfile(graphene.Mutation):
 
         if info.context.user.is_superuser:
             try:
-                profile = Profile.objects.get(pk=profile_id)
-            except Profile.DoesNotExist:
+                profile = BasicProfile.objects.get(pk=profile_id)
+            except BasicProfile.DoesNotExist:
                 raise GraphQLError(_("Invalid profile id."))
         else:
             try:
-                profile = Profile.objects.get(user=info.context.user)
-            except Profile.DoesNotExist:
+                profile = BasicProfile.objects.get(user=info.context.user)
+            except BasicProfile.DoesNotExist:
                 raise GraphQLError(_("No profile found, please create one!"))
 
         try:
@@ -205,7 +225,7 @@ class Query(graphene.ObjectType):
 
         if info.context.user.is_superuser:
             try:
-                return YouthProfile.objects.get(profile_id=profile_id)
+                return YouthProfile.objects.get(profile__uuid=profile_id)
             except YouthProfile.DoesNotExist:
                 raise GraphQLError(_("No youth profile found for provided profile id."))
         try:

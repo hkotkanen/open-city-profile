@@ -1,5 +1,6 @@
 import graphene
 from django.conf import settings
+from django.contrib.auth.models import Group
 from django.db.models import CharField, Value
 from django.db.models.functions import Concat
 from django.utils.translation import override
@@ -8,7 +9,8 @@ from graphql_jwt.decorators import login_required
 from munigeo.models import AdministrativeDivision
 from thesaurus.models import Concept
 
-from .models import Profile
+
+from .models import BasicProfile
 
 
 class ConceptType(DjangoObjectType):
@@ -47,10 +49,10 @@ with override("en"):
     )
 
 
-class ProfileType(DjangoObjectType):
+class BasicProfileType(DjangoObjectType):
     class Meta:
-        model = Profile
-        fields = ("nickname", "image", "email", "phone")
+        model = BasicProfile
+        exclude = ("user",)
 
     language = Language()
     contact_method = ContactMethod()
@@ -64,7 +66,7 @@ class ProfileType(DjangoObjectType):
         return self.divisions_of_interest.all()
 
 
-class ProfileInput(graphene.InputObjectType):
+class BasicProfileInput(graphene.InputObjectType):
     nickname = graphene.String()
     image = graphene.String()
     email = graphene.String()
@@ -75,18 +77,18 @@ class ProfileInput(graphene.InputObjectType):
     divisions_of_interest = graphene.List(graphene.String)
 
 
-class UpdateProfile(graphene.Mutation):
+class UpdateBasicProfile(graphene.Mutation):
     class Arguments:
-        profile = ProfileInput(required=True)
+        profile = BasicProfileInput(required=True)
 
-    profile = graphene.Field(ProfileType)
+    profile = graphene.Field(BasicProfileType)
 
     @login_required
     def mutate(self, info, **kwargs):
         profile_data = kwargs.pop("profile")
         concepts_of_interest = profile_data.pop("concepts_of_interest", [])
         divisions_of_interest = profile_data.pop("divisions_of_interest", [])
-        profile, created = Profile.objects.get_or_create(user=info.context.user)
+        profile, created = BasicProfile.objects.get_or_create(user=info.context.user)
         for field, value in profile_data.items():
             setattr(profile, field, value)
         profile.save()
@@ -100,18 +102,18 @@ class UpdateProfile(graphene.Mutation):
         ads = AdministrativeDivision.objects.filter(ocd_id__in=divisions_of_interest)
         profile.divisions_of_interest.set(ads)
 
-        return UpdateProfile(profile=profile)
+        return UpdateBasicProfile(profile=profile)
 
 
 class Query(graphene.ObjectType):
-    profile = graphene.Field(ProfileType)
+    profile = graphene.Field(BasicProfileType)
     concepts_of_interest = graphene.List(ConceptType)
     divisions_of_interest = graphene.List(AdministrativeDivisionType)
 
     @login_required
     def resolve_profile(self, info, **kwargs):
         return (
-            Profile.objects.filter(user=info.context.user)
+            BasicProfile.objects.filter(user=info.context.user)
             .prefetch_related("concepts_of_interest", "divisions_of_interest")
             .first()
         )
@@ -124,4 +126,4 @@ class Query(graphene.ObjectType):
 
 
 class Mutation(graphene.ObjectType):
-    update_profile = UpdateProfile.Field()
+    update_profile = UpdateBasicProfile.Field()

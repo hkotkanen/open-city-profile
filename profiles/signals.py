@@ -6,10 +6,10 @@ from sentry_sdk import capture_exception
 
 from .consts import REPRESENTATIVE_CONFIRMATION_DEGREE
 from .enums import NotificationType
-from .models import LegalRelationship
+# from .models import LegalRelationship
 
 
-@receiver(post_save, sender=LegalRelationship)
+# @receiver(post_save, sender=LegalRelationship)
 def relationship_saved_handler(sender, instance, created, **kwargs):
     confirmed = instance.confirmation_degree != REPRESENTATIVE_CONFIRMATION_DEGREE[0][0]
 

@@ -7,3 +7,9 @@ REPRESENTATIVE_CONFIRMATION_DEGREE = (
     ("id_shown", _("Guardian present")),
     ("proxy", _("Approved via signed document")),
 )
+
+DATA_TYPE = (
+    ("basic", _("Basic information")),
+    ("sensitive", _("Sensitive information")),
+    ("youth", _("Youth registration information")),
+)
